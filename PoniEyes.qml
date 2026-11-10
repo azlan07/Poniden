@@ -4,12 +4,14 @@ import QtQuick.Shapes
 
 Item {
     id: eyes
-    width: 36
+    property bool showEyes: true
+    property bool playingAudio: false
+    width: (showEyes ? 58 : 0) + (playingAudio ? (showEyes ? 32 : 18) : 0)
     height: 24
     property real opening: 1
     property real gaze: 0
     property real wink: 1
-    readonly property bool moving: visible && PoniTheme.motionEnabled
+    readonly property bool moving: showEyes && visible && PoniTheme.motionEnabled
 
     property var remainingMoves: []
     property int lastMove: -1
@@ -36,10 +38,10 @@ Item {
     }
 
     Repeater {
-        model: 2
+        model: eyes.showEyes ? 2 : 0
         delegate: Item {
             required property int index
-            x: index * 16 + eyes.gaze
+            x: 11 + index * 16 + eyes.gaze
             width: 20
             height: 24
             transform: Scale {
@@ -74,6 +76,50 @@ Item {
                 color: "#f4fbff"
                 antialiasing: true
             }
+        }
+    }
+
+    Shape {
+        objectName: "catWhiskers"
+        visible: eyes.showEyes
+        width: 58
+        height: 24
+        preferredRendererType: Shape.CurveRenderer
+        ShapePath {
+            strokeColor: PoniTheme.idleAccent
+            strokeWidth: 1.2
+            capStyle: ShapePath.RoundCap
+            fillColor: "transparent"
+            PathSvg { path: "M 3 14 L 12 16 M 2 19 L 12 19 M 5 23 L 13 21 M 46 16 L 55 14 M 46 19 L 56 19 M 45 21 L 53 23" }
+        }
+    }
+
+    Row {
+        id: bars
+        objectName: "audioIndicator"
+        anchors.right: parent.right
+        anchors.verticalCenter: parent.verticalCenter
+        visible: eyes.playingAudio
+        height: 15
+        spacing: 3
+        property int beat: 0
+
+        Repeater {
+            model: 3
+            delegate: Rectangle {
+                required property int index
+                anchors.verticalCenter: parent.verticalCenter
+                width: 4
+                height: [5, 10, 15][(index + bars.beat) % 3]
+                radius: 1.5
+                color: PoniTheme.idleAccent
+            }
+        }
+        Timer {
+            running: bars.visible && PoniTheme.motionEnabled
+            repeat: true
+            interval: 240
+            onTriggered: bars.beat = (bars.beat + 1) % 3
         }
     }
 

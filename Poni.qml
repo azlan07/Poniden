@@ -4,6 +4,7 @@ import QtQuick.Controls.Basic
 import QtQuick.Layouts
 import org.kde.layershell as LayerShell
 import org.kde.plasma.private.mpris as Media
+import org.kde.plasma.private.volume as Audio
 import org.kde.taskmanager as Tasks
 
 Window {
@@ -11,6 +12,7 @@ Window {
     required property string brand
     required property QtObject service
     required property QtObject metrics
+    required property QtObject dashboard
     property bool motionEnabled: true
     readonly property bool animate: motionEnabled && activity.animateNotch
         && Qt.styleHints.accessibility.motionPreference !== Qt.ReducedMotion
@@ -18,6 +20,11 @@ Window {
         target: PoniTheme
         property: "motionEnabled"
         value: island.animate
+    }
+    Binding {
+        target: PoniTheme
+        property: "index"
+        value: island.activity.theme
     }
     title: brand
     color: "transparent"
@@ -33,7 +40,7 @@ Window {
     palette.highlightedText: PoniTheme.ink
     flags: Qt.FramelessWindowHint
     width: 548
-    height: 290
+    height: 320
     visible: ready && (alerting || !(activity.hideFullscreen && fullscreenDetected))
 
     LayerShell.Window.anchors: LayerShell.Window.AnchorTop
@@ -54,7 +61,16 @@ Window {
     property int previousPage: 0
     property date now: new Date()
     readonly property var activity: service.view
-    readonly property var pages: ["Media", "Fokus", "Shelf", "To-do", "Salat", "Catatan", "Sistem"]
+    readonly property var pages: [
+        { label: "Beranda", icon: "house" },
+        { label: "Media", icon: "audio-lines" },
+        { label: "Fokus", icon: "timer" },
+        { label: "Shelf", icon: "folder-open" },
+        { label: "To-do", icon: "list-todo" },
+        { label: "Salat", icon: "moon" },
+        { label: "Catatan", icon: "notebook-pen" },
+        { label: "Sistem", icon: "laptop-minimal" }
+    ]
     readonly property int settingsIndex: pages.length
     readonly property bool idleFace: visible && !alerting && !compact && !expanded && !liveStatus && !dropping
     readonly property string liveStatus: activity.running ? "◷ " + elapsed(activity.remaining * 1000000)
@@ -67,7 +83,23 @@ Window {
     readonly property string track: player?.track || ""
     readonly property string artist: player?.artist || ""
     readonly property bool playing: player?.playbackStatus === Media.PlaybackStatus.Playing
+    property bool audioPlaying: false
     readonly property bool seekable: !!player?.canSeek && player.length > 0
+
+    function openHome() {
+        page = 0
+        pinned = true
+    }
+
+    function updateAudio() {
+        for (let i = 0; i < audioStreams.count; ++i) {
+            if (audioStreams.objectAt(i)?.sounding) {
+                audioPlaying = true
+                return
+            }
+        }
+        audioPlaying = false
+    }
 
     function updateClock() {
         now = new Date()
@@ -99,6 +131,10 @@ Window {
     }
 
     onCompactChanged: { if (compact) service.refreshBattery() }
+    onActiveChanged: {
+        if (!active && expanded && !hover.hovered)
+            leaveDelay.restart()
+    }
     Shortcut {
         sequence: "Escape"
         enabled: island.expanded || island.alerting
@@ -111,6 +147,21 @@ Window {
     }
 
     Media.Mpris2Model { id: media }
+    Audio.SinkInputModel { id: playbackStreams }
+    Instantiator {
+        id: audioStreams
+        model: playbackStreams
+        delegate: QtObject {
+            required property var model
+            readonly property var stream: model.PulseObject
+            readonly property var output: Audio.Server.defaultSink
+            readonly property bool sounding: !!stream && !stream.corked && !stream.muted && stream.volume > 0
+                && (!output || stream.deviceIndex !== output.index || (!output.muted && output.volume > 0))
+            onSoundingChanged: Qt.callLater(island.updateAudio)
+        }
+        onObjectAdded: Qt.callLater(island.updateAudio)
+        onObjectRemoved: Qt.callLater(island.updateAudio)
+    }
     Tasks.TasksModel {
         id: tasks
         filterByCurrentVirtualDesktop: true
@@ -134,10 +185,20 @@ Window {
 
     Timer {
         interval: 1000
-        running: island.visible && island.expanded && island.playing && island.page === 0
+        running: island.visible && island.expanded && island.playing && island.page === 1
         repeat: true
         triggeredOnStart: true
         onTriggered: island.player?.updatePosition()
+    }
+    Timer {
+        id: leaveDelay
+        interval: 550
+        onTriggered: {
+            const editor = island.activeFocusItem
+            if (island.expanded && !hover.hovered && !island.dropping
+                    && !(island.active && (editor instanceof TextInput || editor instanceof TextEdit)))
+                island.pinned = false
+        }
     }
     Timer {
         id: clockTick
@@ -153,8 +214,8 @@ Window {
             : (island.activity.smallNotch ? 132 : 164)
         height: island.alerting ? 68 : island.expanded ? island.height : island.compact ? 46 : 34
         color: island.alerting ? PoniTheme.paper : island.dropping ? PoniTheme.lilac : island.expanded ? PoniTheme.paper
-            : island.compact ? PoniTheme.lime : PoniTheme.ink
-        border.color: island.alerting || island.expanded || island.compact ? PoniTheme.ink : PoniTheme.lime
+            : island.compact ? PoniTheme.lime : PoniTheme.idleFill
+        border.color: island.alerting || island.expanded || island.compact ? PoniTheme.ink : PoniTheme.idleAccent
         border.width: 2
         bottomLeftRadius: 6
         bottomRightRadius: bottomLeftRadius
@@ -171,7 +232,15 @@ Window {
             NumberAnimation { duration: 190; easing.type: Easing.OutCubic }
         }
 
-        HoverHandler { id: hover }
+        HoverHandler {
+            id: hover
+            onHoveredChanged: {
+                if (hovered)
+                    leaveDelay.stop()
+                else if (island.expanded)
+                    leaveDelay.restart()
+            }
+        }
 
         DropArea {
             id: fileDrop
@@ -184,7 +253,7 @@ Window {
             onDropped: drop => {
                 if ((drop.supportedActions & Qt.CopyAction) && drop.hasUrls
                     && island.service.addFiles(drop.urls.map(url => url.toString()))) {
-                    island.page = 2
+                    island.page = 3
                     island.pinned = true
                     drop.accept(Qt.CopyAction)
                 }
@@ -194,14 +263,16 @@ Window {
         PoniEyes {
             objectName: "eyes"
             anchors.centerIn: parent
-            visible: island.idleFace && island.activity.showEyes
+            visible: island.idleFace && (island.activity.showEyes || island.audioPlaying)
+            showEyes: island.activity.showEyes
+            playingAudio: island.audioPlaying
         }
 
         Text {
             anchors.centerIn: parent
-            visible: island.idleFace && !island.activity.showEyes
+            visible: island.idleFace && !island.activity.showEyes && !island.audioPlaying
             text: "poniden"
-            color: PoniTheme.lime
+            color: PoniTheme.idleAccent
             font.bold: true
             font.pixelSize: 13
         }
@@ -261,7 +332,7 @@ Window {
             anchors.centerIn: parent
             visible: !island.alerting && !island.expanded && (island.dropping || (!island.compact && !!island.liveStatus))
             text: island.dropping ? "▣  Lepas ke Shelf" : island.liveStatus
-            color: island.dropping ? PoniTheme.ink : PoniTheme.lime
+            color: island.dropping ? PoniTheme.ink : PoniTheme.idleAccent
             font.bold: true
             font.pixelSize: 13
         }
@@ -273,8 +344,8 @@ Window {
             cursorShape: Qt.PointingHandCursor
             Accessible.role: Accessible.Button
             Accessible.name: "Buka panel " + island.brand
-            Accessible.onPressAction: island.pinned = true
-            onClicked: island.pinned = true
+            Accessible.onPressAction: island.openHome()
+            onClicked: island.openHome()
         }
 
         RowLayout {
@@ -338,7 +409,8 @@ Window {
                 Text {
                     anchors.centerIn: parent
                     objectName: "headerDate"
-                    text: island.now.toLocaleString(Qt.locale("id_ID"), "dddd, d MMM yyyy   HH:mm")
+                    text: island.page === 0 ? Qt.formatTime(island.now, "HH:mm")
+                        : island.now.toLocaleString(Qt.locale("id_ID"), "dddd, d MMM yyyy   HH:mm")
                     color: PoniTheme.ink
                     font.pixelSize: 13
                     font.weight: Font.DemiBold
@@ -347,8 +419,9 @@ Window {
                 Text {
                     anchors.left: parent.left
                     anchors.verticalCenter: parent.verticalCenter
-                    text: island.activity.battery
+                    text: island.page === 0 ? "PONIDEN" : island.activity.battery
                     color: PoniTheme.ink
+                    font.bold: island.page === 0
                     font.pixelSize: 12
                 }
 
@@ -359,7 +432,9 @@ Window {
                     anchors.verticalCenter: parent.verticalCenter
                     width: 34
                     height: 27
-                    text: "⚙"
+                    icon.source: "icons/settings.svg"
+                    ToolTip.visible: hovered
+                    ToolTip.text: "Pengaturan"
                     highlighted: island.page === island.settingsIndex
                     Accessible.name: "Pengaturan tampilan"
                     onClicked: {
@@ -378,7 +453,9 @@ Window {
                     anchors.verticalCenter: parent.verticalCenter
                     width: 34
                     height: 27
-                    text: "×"
+                    icon.source: "icons/x.svg"
+                    ToolTip.visible: hovered
+                    ToolTip.text: "Tutup panel"
                     Accessible.name: "Tutup panel"
                     onClicked: island.pinned = false
                 }
@@ -398,6 +475,16 @@ Window {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 currentIndex: island.page
+
+                Component {
+                    id: homePage
+                    DashboardPage {
+                        dashboard: island.dashboard
+                        metrics: island.metrics
+                        activity: island.activity
+                        now: island.now
+                    }
+                }
 
                 Component {
                     id: mediaPage
@@ -530,12 +617,12 @@ Window {
                 Component { id: todoPage; TodoPage { service: island.service; tasks: island.service.todoItems } }
                 Component { id: prayerPage; PrayerPage { service: island.service; activity: island.activity } }
                 Component { id: notesPage; NotesPage { service: island.service } }
-                Component { id: systemPage; SystemPage { objectName: "systemPage"; metrics: island.metrics; monitoring: island.expanded && island.visible && island.page === 6 } }
+                Component { id: systemPage; SystemPage { objectName: "systemPage"; metrics: island.metrics; monitoring: island.expanded && island.visible && island.page === 7 } }
 
                 Component { id: settingsPage; SettingsPage { service: island.service; brand: island.brand } }
 
                 Repeater {
-                    model: [mediaPage, focusPage, shelfPage, todoPage,
+                    model: [homePage, mediaPage, focusPage, shelfPage, todoPage,
                             prayerPage, notesPage, systemPage, settingsPage]
                     delegate: Loader {
                         required property Component modelData
@@ -543,8 +630,9 @@ Window {
                         objectName: "pageLoader"
                         readonly property bool selected: island.expanded && island.visible && island.page === index
                         property bool visited: false
-                        // Keep drafts and selections in visited tabs. Media and System have no draft to retain.
-                        active: selected || (visited && modelData !== mediaPage && modelData !== systemPage && modelData !== settingsPage)
+                        // Keep drafts and selections only in tabs that can hold them.
+                        active: selected || (visited && (modelData === focusPage || modelData === shelfPage
+                            || modelData === todoPage || modelData === prayerPage || modelData === notesPage))
                         onSelectedChanged: { if (selected) visited = true }
                         sourceComponent: modelData
                     }
@@ -566,10 +654,14 @@ Window {
                 Repeater {
                     model: island.pages
                     PoniButton {
-                        required property string modelData
+                        required property var modelData
                         required property int index
-                        text: modelData
-                        Layout.preferredHeight: 28
+                        objectName: "navButton"
+                        icon.source: "icons/" + modelData.icon + ".svg"
+                        Accessible.name: modelData.label
+                        ToolTip.visible: hovered
+                        ToolTip.text: modelData.label
+                        Layout.preferredHeight: 34
                         Layout.fillWidth: true
                         highlighted: island.page === index
                         onClicked: island.page = index

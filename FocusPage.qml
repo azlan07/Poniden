@@ -8,7 +8,6 @@ ColumnLayout {
     required property QtObject service
     required property var activity
     required property string remaining
-    readonly property color phaseColor: [PoniTheme.ink, "#43641e", "#43518c"][activity.phaseIndex]
     spacing: 5
 
     RowLayout {
@@ -30,7 +29,7 @@ ColumnLayout {
     Text {
         Layout.alignment: Qt.AlignHCenter
         text: page.remaining
-        color: page.phaseColor
+        color: PoniTheme.ink
         font.pixelSize: 36
         font.family: "monospace"
     }
@@ -82,5 +81,20 @@ ColumnLayout {
             Accessible.name: "Menit istirahat"
             onValueModified: page.service.setFocus(focusMinutes.value, value)
         }
+    }
+
+    RowLayout {
+        Layout.fillWidth: true
+        Text { text: "Volume alarm"; color: PoniTheme.muted; font.pixelSize: 12 }
+        Item { Layout.fillWidth: true }
+        PoniSpin {
+            objectName: "focusVolume"
+            Layout.preferredWidth: 82
+            from: 0; to: 100; stepSize: 5
+            value: page.activity.focusVolume
+            Accessible.name: "Volume alarm dalam persen"
+            onValueModified: page.service.setAlertVolume("focus", value)
+        }
+        Text { text: "%"; color: PoniTheme.muted; font.pixelSize: 12 }
     }
 }

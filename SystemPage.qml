@@ -136,5 +136,46 @@ ColumnLayout {
         }
     }
 
-    Item { Layout.fillHeight: true }
+    RowLayout {
+        Layout.fillWidth: true
+        Layout.fillHeight: true
+        Layout.minimumHeight: 42
+        spacing: 8
+
+        Repeater {
+            model: ["Perangkat", "Kernel", "Uptime"]
+            delegate: Rectangle {
+                id: info
+                required property string modelData
+                required property int index
+                readonly property int minutes: page.stats.uptime ?? 0
+                readonly property int days: Math.floor(minutes / 1440)
+                readonly property string uptime: (days ? days + " hari " : "")
+                    + Math.floor(minutes % 1440 / 60) + " jam " + minutes % 60 + " mnt"
+                readonly property string detail: index === 0 ? page.metrics.deviceName
+                    : index === 1 ? page.stats.kernel ?? "—" : uptime
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                Layout.preferredWidth: 150
+                color: PoniTheme.light
+                border.width: 1
+                border.color: PoniTheme.ink
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 8
+                    spacing: 3
+                    Text { text: info.modelData; color: PoniTheme.muted; font.pixelSize: 10 }
+                    Text {
+                        Layout.fillWidth: true
+                        text: info.detail
+                        color: PoniTheme.ink
+                        font.pixelSize: 11
+                        font.weight: Font.DemiBold
+                        elide: Text.ElideRight
+                    }
+                }
+            }
+        }
+    }
 }

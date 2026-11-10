@@ -64,7 +64,8 @@ class Activities(QObject):
             "focus_day": "", "focus_sessions": 0,
             "city": "Jakarta", "prayer_alerts": False, "last_prayer": "",
             "hide_fullscreen": True, "small_notch": False, "show_eyes": True,
-            "show_battery": True, "animate_notch": True,
+            "show_battery": True, "animate_notch": True, "theme": 0,
+            "focus_volume": 100, "prayer_volume": 100,
         }
         try:
             saved = json.loads(self.settings.value("data", "{}"))
@@ -72,6 +73,10 @@ class Activities(QObject):
                 self.state.update(saved)
         except (TypeError, ValueError):
             pass
+        for key in ("focus_volume", "prayer_volume"):
+            value = self.state[key]
+            if type(value) is not int or not 0 <= value <= 100:
+                self.state[key] = 100
         self.snapshot = {}
         self.last_battery_read = float("-inf")
         self.last_shelf_read = float("-inf")
@@ -186,6 +191,7 @@ class Activities(QObject):
             "round": s["rounds"] % 4 + 1 if s["phase"] == 0 else (s["rounds"] - 1) % 4 + 1,
             "focusMinutes": s["focus_minutes"], "breakMinutes": s["break_minutes"],
             "focusTotal": self.phase_seconds(),
+            "focusVolume": s["focus_volume"], "prayerVolume": s["prayer_volume"],
             "files": files,
             "tasks": [{**task, "index": i,
                        "when": datetime.fromtimestamp(task["due"]).strftime("%d/%m %H:%M") if task["due"] else ""}
@@ -197,6 +203,7 @@ class Activities(QObject):
             "battery": battery, "hideFullscreen": s["hide_fullscreen"],
             "smallNotch": s["small_notch"], "showEyes": s["show_eyes"],
             "showBattery": s["show_battery"], "animateNotch": s["animate_notch"],
+            "theme": s["theme"] if s["theme"] in range(4) else 0,
         }
         if values != self.snapshot:
             lists_changed = any(values[key] != self.snapshot.get(key) for key in ("files", "tasks"))
@@ -256,15 +263,16 @@ class Activities(QObject):
             s["focus_minutes"], s["break_minutes"] = focus, rest
             self.focusAction("reset")
 
-    @Slot(str, str)
+    @Slot(str, str, result=bool)
     def addTask(self, title, minutes):
         title = title.strip()[:160]
         minutes = minutes.strip()
         if not title or (minutes and (not minutes.isdecimal() or not 1 <= int(minutes) <= 10080)):
-            return
+            return False
         due = int(time.time()) + int(minutes) * 60 if minutes else 0
         self.state["tasks"].append({"title": title, "due": due, "done": False, "notified": False})
         self.save()
+        return True
 
     @Slot(int, bool)
     def markTask(self, index, done):
@@ -316,6 +324,14 @@ class Activities(QObject):
             self.state.update(city=city, prayer_alerts=alerts)
             self.save()
 
+    @Slot(str, int)
+    def setAlertVolume(self, kind, percent):
+        if kind in ("focus", "prayer") and 0 <= percent <= 100:
+            key = kind + "_volume"
+            if self.state[key] != percent:
+                self.state[key] = percent
+                self.save()
+
     @Slot(bool)
     def hideFullscreen(self, enabled):
         if self.state["hide_fullscreen"] != enabled:
@@ -326,6 +342,12 @@ class Activities(QObject):
     def setAppearance(self, option, enabled):
         if option in {"small_notch", "show_eyes", "show_battery", "animate_notch"}:
             self.state[option] = enabled
+            self.save()
+
+    @Slot(int)
+    def setTheme(self, index):
+        if 0 <= index < 4 and index != self.state["theme"]:
+            self.state["theme"] = index
             self.save()
 
     @staticmethod

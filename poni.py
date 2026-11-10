@@ -3,7 +3,7 @@ import sys
 from collections import deque
 from pathlib import Path
 
-from PySide6.QtCore import QProcess, QSettings, QStandardPaths, QTimer, QUrl, Qt
+from PySide6.QtCore import QLockFile, QProcess, QSettings, QStandardPaths, QTimer, QUrl, Qt
 from PySide6.QtGui import QColor, QIcon, QPalette, QPainter, QPainterPath, QPixmap, QRegion
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuick import QQuickItem
@@ -12,6 +12,7 @@ from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 from shiboken6 import delete
 
 from activities import Activities
+from dashboard import Dashboard
 from system_info import SystemInfo
 
 
@@ -29,6 +30,16 @@ for role, color in {
     palette.setColor(getattr(QPalette.ColorRole, role), QColor(color))
 app.setPalette(palette)
 config = Path(QStandardPaths.writableLocation(QStandardPaths.StandardLocation.GenericConfigLocation))
+profile = config / "Poni"
+profile.mkdir(parents=True, exist_ok=True)
+instance_lock = QLockFile(str(profile / "poniden.lock"))
+instance_lock.setStaleLockTime(0)
+if not instance_lock.tryLock(0):
+    if instance_lock.error() == QLockFile.LockError.LockFailedError:
+        print("Poniden sudah berjalan untuk profil ini.", file=sys.stderr)
+        raise SystemExit(0)
+    raise SystemExit("Poniden tidak bisa mengunci profil pengaturan.")
+
 desktop = QSettings(str(config / "kdeglobals"), QSettings.Format.IniFormat)
 try:
     motion_enabled = float(desktop.value("KDE/AnimationDurationFactor", 1)) > 0
@@ -38,8 +49,10 @@ except (TypeError, ValueError):
 activities = Activities()
 engine = QQmlApplicationEngine()
 metrics = SystemInfo()
+dashboard = Dashboard()
 engine.setInitialProperties({
-    "brand": brand, "service": activities, "metrics": metrics, "motionEnabled": motion_enabled,
+    "brand": brand, "service": activities, "metrics": metrics, "dashboard": dashboard,
+    "motionEnabled": motion_enabled,
 })
 engine.warnings.connect(lambda warnings: [print(error.toString(), file=sys.stderr) for error in warnings])
 engine.load(QUrl.fromLocalFile(str(folder / "Poni.qml")))
@@ -90,7 +103,12 @@ painter.end()
 tray = QSystemTrayIcon(QIcon(pixmap))
 tray.setToolTip(brand)
 menu = QMenu()
-menu.addAction("Buka " + brand, lambda: window.setProperty("pinned", True))
+def open_panel():
+    window.setProperty("page", 0)
+    window.setProperty("pinned", True)
+
+
+menu.addAction("Buka " + brand, open_panel)
 fullscreen = menu.addAction("Sembunyikan saat jendela penuh")
 fullscreen.setCheckable(True)
 fullscreen.setChecked(activities.view["hideFullscreen"])
@@ -131,7 +149,7 @@ autostart.toggled.connect(set_autostart)
 menu.addSeparator()
 menu.addAction("Keluar", app.quit)
 tray.setContextMenu(menu)
-tray.activated.connect(lambda reason: window.setProperty("pinned", True)
+tray.activated.connect(lambda reason: open_panel()
                        if reason == QSystemTrayIcon.ActivationReason.Trigger else None)
 alert_sounds = {"Fokus": folder / "alarm-clock-elapsed.oga", "Salat": folder / "azan-mekkah.oga"}
 pending_alerts = deque()
@@ -147,7 +165,10 @@ def show_next_alert():
     window.setProperty("alertMessage", message)
     window.setProperty("alertTitle", "Pomodoro" if title == "Fokus" else "Waktu salat")
     alert_hold.start()
-    sound.start("pw-play", ["--media-role", "Notification", str(alert_sounds[title])])
+    volume = activities.view["focusVolume" if title == "Fokus" else "prayerVolume"]
+    if volume:
+        sound.start("pw-play", ["--media-role", "Notification", "--volume",
+                                f"{volume / 100:.2f}", str(alert_sounds[title])])
 
 
 def finish_alert():
@@ -197,4 +218,5 @@ if sound.state() != QProcess.NotRunning:
     sound.waitForFinished(1000)
 tray.hide()
 delete(engine)
+instance_lock.unlock()
 raise SystemExit(result)

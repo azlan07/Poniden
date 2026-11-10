@@ -20,6 +20,22 @@ class SystemInfo(QObject):
         super().__init__()
         self.snapshot = {}
         self.previous = None
+        self.kernel = os.uname().release
+        vendor = read_text("/sys/class/dmi/id/sys_vendor").strip()
+        model = read_text("/sys/class/dmi/id/product_version").strip()
+        if not model or model in {"1.0", "Default string", "To be filled by O.E.M."}:
+            model = read_text("/sys/class/dmi/id/product_name").strip()
+        self.device = " ".join(part for part in (vendor, model) if part) or "Perangkat Linux"
+        self.processor = next((row.partition(":")[2].strip() for row in read_text("/proc/cpuinfo").splitlines()
+                               if row.startswith("model name")), "CPU Linux")
+
+    @Property(str, constant=True)
+    def deviceName(self):
+        return self.device
+
+    @Property(str, constant=True)
+    def processorName(self):
+        return self.processor
 
     @Property("QVariantMap", notify=changed)
     def view(self):
@@ -81,6 +97,8 @@ class SystemInfo(QObject):
             "networkAvailable": bool(counters),
             "temperature": round(max(temperatures)) if temperatures else None,
             "sampled": sampled,
+            "kernel": self.kernel,
+            "uptime": int(time.clock_gettime(time.CLOCK_BOOTTIME)) // 60,
         }
         if snapshot != self.snapshot:
             self.snapshot = snapshot

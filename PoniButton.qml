@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls.Basic
+import QtQuick.Controls.impl
 
 Button {
     id: button
@@ -11,31 +12,46 @@ Button {
     font.pixelSize: 12
     font.weight: Font.DemiBold
 
-    contentItem: Text {
-        text: button.text
-        font: button.font
-        color: button.enabled ? PoniTheme.ink : PoniTheme.muted
-        horizontalAlignment: Text.AlignHCenter
-        verticalAlignment: Text.AlignVCenter
-        elide: Text.ElideRight
+    contentItem: Item {
+        implicitWidth: button.icon.source.toString() ? 19 : caption.implicitWidth
+        implicitHeight: Math.max(19, caption.implicitHeight)
         transform: Translate { x: face.x; y: face.y }
+
+        ColorImage {
+            anchors.centerIn: parent
+            source: button.icon.source
+            visible: source.toString() !== ""
+            color: button.enabled ? PoniTheme.ink : PoniTheme.muted
+            sourceSize: Qt.size(19, 19)
+        }
+        Text {
+            id: caption
+            anchors.fill: parent
+            visible: button.icon.source.toString() === ""
+            text: button.text
+            font: button.font
+            color: button.enabled ? PoniTheme.ink : PoniTheme.muted
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+            elide: Text.ElideRight
+        }
     }
     background: Item {
         Rectangle {
-            x: 2; y: 2
-            width: parent.width - 2
-            height: parent.height - 2
-            color: PoniTheme.ink
+            x: PoniTheme.buttonOffset; y: PoniTheme.buttonOffset
+            width: parent.width - PoniTheme.buttonOffset
+            height: parent.height - PoniTheme.buttonOffset
+            color: PoniTheme.shadow
         }
         Rectangle {
             id: face
-            x: button.down ? 2 : 0
-            y: button.down ? 2 : button.hovered && button.enabled ? -1 : 0
-            width: parent.width - 2
-            height: parent.height - 2
+            x: button.down ? PoniTheme.buttonOffset : 0
+            y: button.down ? PoniTheme.buttonOffset : button.hovered && button.enabled ? -1 : 0
+            width: parent.width - PoniTheme.buttonOffset
+            height: parent.height - PoniTheme.buttonOffset
             color: !button.enabled ? PoniTheme.edge : button.checked || button.highlighted
                 ? PoniTheme.lime : button.hovered ? PoniTheme.lilac : PoniTheme.light
-            border.width: button.visualFocus ? 3 : 2
+            border.width: button.visualFocus ? PoniTheme.buttonBorder + 1 : PoniTheme.buttonBorder
             border.color: PoniTheme.ink
             Behavior on x { enabled: PoniTheme.motionEnabled; NumberAnimation { duration: 90 } }
             Behavior on y { enabled: PoniTheme.motionEnabled; NumberAnimation { duration: 90 } }

@@ -1,32 +1,50 @@
-# Poniden
+# Poniden by utidev
 
-Notch desktop bergaya Dynamic Island untuk **CachyOS dengan KDE Plasma di Wayland**. Arahkan kursor ke notch untuk melihat jam dan baterai. Klik untuk membuka panel, lalu klik roda gigi untuk membuka atau menutup pengaturan.
+Notch desktop untuk **CachyOS dan KDE Plasma 6 di Wayland**. Wajah kucing hitam melirik dan berkedip saat idle. Saat audio diputar, indikator kecil muncul di sampingnya. Arahkan kursor ke notch untuk melihat jam dan baterai, lalu klik untuk membuka Beranda.
+
+[Unduh rilis terbaru](https://github.com/azlan07/Poniden/releases/latest) · [Lisensi MIT](LICENSE)
+
+## Preview
+
+![Notch kucing hitam dengan indikator audio dan Beranda Poniden](docs/preview-beranda.png)
+
+<details>
+<summary>Lihat tab To-do dan Salat</summary>
+
+![Tab To-do dengan ringkasan, pengingat, dan status tugas](docs/preview-todo.png)
+
+![Tab Salat dengan sketsa masjid, jadwal, dan volume azan](docs/preview-salat.png)
+
+</details>
 
 ## Fitur
 
-- Kontrol media lewat MPRIS, Pomodoro dengan alarm, Shelf untuk file, To-do, Catatan, dan pemantau sistem.
-- Perkiraan jadwal salat offline untuk beberapa kota, termasuk Padang. Aktifkan pengingat di tab **Salat** untuk memutar azan Mekkah.
-- Auto-hide saat jendela aktif dimaksimalkan atau ada aplikasi fullscreen di layar notch. Pengingat Pomodoro dan salat muncul di atas aplikasi.
-- Tampilan notch, animasi mata, serta autostart yang bisa diatur.
+- **Beranda** menampilkan tanggal Indonesia, baterai, cuaca, dan ringkasan perangkat. Tab **Sistem** menampilkan penggunaan CPU, RAM, disk, jaringan, suhu, model perangkat, kernel, dan waktu aktif.
+- **Media, Fokus, Shelf, To-do, dan Catatan** menyediakan kontrol playback lewat MPRIS, Pomodoro, referensi file drag-and-drop, tugas dengan pengingat opsional, dan catatan lokal.
+- **Salat** menghitung perkiraan jadwal offline, termasuk untuk Padang. Pengingat azan dapat diaktifkan dari tab Salat. Alarm Fokus dan azan punya volume 0–100% masing-masing.
+- **Pengaturan** menyediakan empat palet neubrutalism, ukuran notch, animasi, dan auto-hide. Saat aplikasi dimaksimalkan atau fullscreen, pengingat Fokus dan Salat tetap bisa tampil.
+- **Lokasi cuaca** bisa dipilih terpisah dari kota salat. Beranda mengambil cuaca dari [Open-Meteo](https://open-meteo.com/). Tombol pin melakukan perkiraan kota lewat [ipapi.co](https://ipapi.co/) hanya saat diklik.
 
-## Menjalankan
+## Menjalankan di CachyOS
 
-Poniden memakai Python 3, PySide6/Qt 6.12 atau lebih baru, KDE Plasma 6 Wayland, LayerShellQt, dan PipeWire untuk suara. Pada CachyOS yang sudah diperbarui, paket yang diperlukan bisa dipasang dengan:
+Poniden membutuhkan KDE Plasma 6 di Wayland, Python 3, PySide6/Qt 6.12 atau lebih baru, LayerShellQt, dan PipeWire. Pada CachyOS yang sudah diperbarui, pasang dependensinya dengan:
 
 ```bash
-sudo pacman -S --needed pyside6 layer-shell-qt plasma-workspace pipewire-audio
+sudo pacman -S --needed pyside6 layer-shell-qt plasma-workspace plasma-pa pipewire-audio qt6-svg
 ```
 
+Unduh **Source code (zip)** dari halaman rilis, ekstrak, buka terminal di folder hasil ekstrak, lalu jalankan:
+
 ```bash
-git clone https://github.com/azlan07/Poniden.git
-cd Poniden
 bash poni.sh
 ```
 
-Untuk mulai otomatis, buka menu ikon Poniden di tray dan pilih **Jalankan saat masuk KDE**. Pilih **Keluar** untuk menghentikan proses.
+Alternatifnya, ambil versi pengembangan dengan `git clone https://github.com/azlan07/Poniden.git`, lalu jalankan `bash poni.sh` dari direktori repo.
+
+Untuk autostart, pilih **Jalankan saat masuk KDE** dari menu tray. Sebelum mengganti versi, pilih **Keluar** di tray lalu jalankan launcher versi baru. Preferensi, tugas, dan catatan disimpan per pengguna melalui QSettings.
 
 ## Kredit dan lisensi
 
 Dikembangkan oleh **utidev**. Poniden tumbuh dari sesi prototyping dan percakapan dengan **GPT-6.1 Sol**, lalu bentuk dan perilakunya disempurnakan lewat uji langsung di CachyOS.
 
-Kode Poniden tersedia dengan [Lisensi MIT](LICENSE). Rekaman alarm dan azan punya lisensi Creative Commons masing-masing, dengan sumber dan atribusi di [Kredit audio](AUDIO.md).
+Kode Poniden tersedia dengan [Lisensi MIT](LICENSE). Rekaman alarm dan azan punya lisensi Creative Commons masing-masing, dengan sumber dan atribusi di [Kredit audio](AUDIO.md). Ikon navigasi berasal dari [Lucide](https://lucide.dev/icons/) dan memakai [lisensi ikon](icons/LICENSE) tersendiri.
