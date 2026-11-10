@@ -11,8 +11,24 @@ Item {
     property real wink: 1
     readonly property bool moving: visible && PoniTheme.motionEnabled
 
+    property var remainingMoves: []
+    property int lastMove: -1
+
+    function waitForNextMove() {
+        if (moving) {
+            delay.interval = 2100 + Math.floor(Math.random() * 2101)
+            delay.restart()
+        }
+    }
+
     onMovingChanged: {
-        if (!moving) {
+        if (moving) {
+            waitForNextMove()
+        } else {
+            delay.stop()
+            glance.stop()
+            blinkTwice.stop()
+            winkOnce.stop()
             gaze = 0
             opening = 1
             wink = 1
@@ -61,22 +77,63 @@ Item {
         }
     }
 
-    SequentialAnimation {
-        running: eyes.moving
-        loops: Animation.Infinite
+    Timer {
+        id: delay
+        onTriggered: {
+            if (eyes.remainingMoves.length === 0) {
+                eyes.remainingMoves = [0, 1, 2, 3]
+                if (eyes.lastMove >= 0) {
+                    eyes.remainingMoves.splice(eyes.lastMove, 1)
+                    eyes.remainingMoves.push(eyes.lastMove)
+                }
+            }
+            // On the first draw of a new round, skip the action that just ran.
+            const count = eyes.remainingMoves.length
+            const choices = count === 4 && eyes.lastMove >= 0 ? 3 : count
+            const pick = Math.floor(Math.random() * choices)
+            const action = eyes.remainingMoves.splice(pick, 1)[0]
+            eyes.lastMove = action
 
-        PauseAnimation { duration: 2350 }
-        NumberAnimation { target: eyes; property: "gaze"; to: -4; duration: 180; easing.type: Easing.OutCubic }
-        PauseAnimation { duration: 340 }
-        NumberAnimation { target: eyes; property: "gaze"; to: 4; duration: 240; easing.type: Easing.InOutCubic }
-        PauseAnimation { duration: 330 }
+            if (action < 2) {
+                lookOut.to = action === 0 ? -4 : 4
+                glance.start()
+            } else if (action === 2) {
+                blinkTwice.start()
+            } else {
+                winkOnce.start()
+            }
+        }
+    }
+
+    SequentialAnimation {
+        id: glance
+        onFinished: eyes.waitForNextMove()
+        NumberAnimation {
+            id: lookOut
+            target: eyes
+            property: "gaze"
+            duration: 180
+            easing.type: Easing.OutCubic
+        }
+        PauseAnimation { duration: 460 }
         NumberAnimation { target: eyes; property: "gaze"; to: 0; duration: 160; easing.type: Easing.OutCubic }
-        NumberAnimation { target: eyes; property: "wink"; to: 0.12; duration: 75 }
-        PauseAnimation { duration: 110 }
-        NumberAnimation { target: eyes; property: "wink"; to: 1; duration: 125 }
-        PauseAnimation { duration: 180 }
+    }
+
+    SequentialAnimation {
+        id: blinkTwice
+        loops: 2
+        onFinished: eyes.waitForNextMove()
         NumberAnimation { target: eyes; property: "opening"; to: 0.14; duration: 65 }
         PauseAnimation { duration: 40 }
-        NumberAnimation { target: eyes; property: "opening"; to: 1; duration: 110 }
+        NumberAnimation { target: eyes; property: "opening"; to: 1; duration: 105 }
+        PauseAnimation { duration: 105 }
+    }
+
+    SequentialAnimation {
+        id: winkOnce
+        onFinished: eyes.waitForNextMove()
+        NumberAnimation { target: eyes; property: "wink"; to: 0.12; duration: 75 }
+        PauseAnimation { duration: 135 }
+        NumberAnimation { target: eyes; property: "wink"; to: 1; duration: 125 }
     }
 }

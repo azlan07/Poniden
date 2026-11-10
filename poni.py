@@ -51,7 +51,8 @@ notch = window.findChild(QQuickItem, "notch")
 
 
 def update_input_region():
-    left = notch.x()
+    # The hidden Qt Quick content can still have width zero before the first Wayland map.
+    left = (window.width() - notch.width()) / 2
     right = left + notch.width()
     bottom = notch.height()
     radius = notch.property("bottomLeftRadius")
@@ -71,6 +72,7 @@ mask_update = QTimer(window, interval=0, singleShot=True)
 mask_update.timeout.connect(update_input_region)
 notch.widthChanged.connect(mask_update.start)
 notch.heightChanged.connect(mask_update.start)
+window.widthChanged.connect(mask_update.start)
 update_input_region()
 
 pixmap = QPixmap(32, 32)

@@ -74,6 +74,8 @@ class Activities(QObject):
             pass
         self.snapshot = {}
         self.last_battery_read = float("-inf")
+        self.last_shelf_read = float("-inf")
+        self.shelf_paths = ()
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.refresh)
         self.refresh(check_reminders=False)
@@ -166,6 +168,14 @@ class Activities(QObject):
             interval = min(interval, max(100, until_prayer))
         if not self.timer.isActive() or self.timer.interval() != interval:
             self.timer.start(interval)
+        paths = tuple(s["files"])
+        if paths != self.shelf_paths or clock - self.last_shelf_read >= 15:
+            files = [{"url": QUrl.fromLocalFile(path).toString(), "name": Path(path).name,
+                      "exists": Path(path).exists()} for path in paths]
+            self.shelf_paths = paths
+            self.last_shelf_read = clock
+        else:
+            files = self.snapshot["files"]
         values = {
             "nextTask": next_task - now,
             "phaseIndex": s["phase"],
@@ -176,8 +186,7 @@ class Activities(QObject):
             "round": s["rounds"] % 4 + 1 if s["phase"] == 0 else (s["rounds"] - 1) % 4 + 1,
             "focusMinutes": s["focus_minutes"], "breakMinutes": s["break_minutes"],
             "focusTotal": self.phase_seconds(),
-            "files": [{"url": QUrl.fromLocalFile(p).toString(), "name": Path(p).name,
-                       "exists": Path(p).exists()} for p in s["files"]],
+            "files": files,
             "tasks": [{**task, "index": i,
                        "when": datetime.fromtimestamp(task["due"]).strftime("%d/%m %H:%M") if task["due"] else ""}
                       for i, task in enumerate(s["tasks"])],
